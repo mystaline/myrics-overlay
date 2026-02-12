@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lyrics Overlay</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Transparent overlay container -->
+    <div class="overlay-container">
+        <!-- Dark semi-transparent box for lyrics -->
+        <div class="lyrics-box">
+            <!-- Current line (bright and bold) -->
+            <p id="current-line" class="current">Waiting for music...</p>
+            
+            <!-- Next line (dimmed preview) -->
+            <p id="next-line" class="next"></p>
+        </div>
+    </div>
+
+    <!-- Wails runtime (auto-injected) -->
+    <script src="wailsjs/runtime/runtime.js"></script>
+    
+    <!-- App logic -->
+    <script src="app.js"></script>
+</body>
+</html>

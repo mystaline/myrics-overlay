@@ -28,6 +28,13 @@ go.work
 .DS_Store
 Thumbs.db
 
+# Wails
+build/
+frontend/dist/
+frontend/wailsjs/
+.wails/
+wails.json.bak
+
 # Config with secrets
 configs/config.yaml
 !configs/config.yaml.example

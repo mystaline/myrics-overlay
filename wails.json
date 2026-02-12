@@ -1,0 +1,20 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "myrics-overlay",
+  "outputfilename": "myrics-overlay",
+  "frontend:install": "",
+  "frontend:build": "",
+  "frontend:dev:watcher": "",
+  "frontend:dev:serverUrl": "",
+  "author": {
+    "name": "mystaline",
+    "email": "priyabagus.a29@gmail.com"
+  },
+  "info": {
+    "companyName": "",
+    "productName": "Lyrics Overlay",
+    "productVersion": "1.0.0",
+    "copyright": "",
+    "comments": "Automatic lyrics overlay for playing music"
+  }
+}
