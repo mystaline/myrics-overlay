@@ -7,6 +7,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/linux"
+	"github.com/wailsapp/wails/v2/pkg/options/windows"
 )
 
 //go:embed all:frontend
@@ -18,12 +19,10 @@ func main() {
 
 	// TODO: Configure Wails application
 	err := wails.Run(&options.App{
-		Title:  "Lyrics Overlay",
-		Width:  800,
-		Height: 120,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
+		DisableResize: true,
 		// TODO: Set transparent background
 		// Alpha value 0 makes the window background fully transparent
 		BackgroundColour: &options.RGBA{R: 0, G: 0, B: 0, A: 0},
@@ -45,10 +44,9 @@ func main() {
 			WindowIsTranslucent: true,
 		},
 
-		// TODO: Add Windows options ?
-		// Windows: &windows.Options{
-		//     WindowIsTranslucent: true,
-		// },
+		Windows: &windows.Options{
+			WindowIsTranslucent: true,
+		},
 	})
 	if err != nil {
 		panic(err)

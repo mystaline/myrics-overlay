@@ -22,12 +22,17 @@ func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 
 	// TODO: Step 1 - Configure window properties
+	// Set window size and position first
+	runtime.WindowSetSize(ctx, 800, 70)
+
+	// Position at top center initially
+	runtime.WindowSetPosition(ctx, 500, 0)
+
+	// Show window before setting always-on-top (Linux compatibility)
+	runtime.WindowShow(ctx)
+
 	// Set window to always stay on top of other windows
 	runtime.WindowSetAlwaysOnTop(ctx, true)
-
-	// Size: 800x120 pixels, centered on screen
-	runtime.WindowSetSize(ctx, 800, 120)
-	runtime.WindowCenter(ctx)
 
 	// Goroutine to continuously detect music
 	go a.detectionLoop()
