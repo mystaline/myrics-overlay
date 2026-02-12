@@ -1,0 +1,13 @@
+acrcloud:
+  access_key: "ACCESS_KEY_HERE"
+  secret_key: "SECRET_KEY_HERE"
+  host: "HOST_HERE"
+
+overlay:
+  font_size: 24
+  font_family: "Arial"
+  position: "bottom"
+  opacity: 0.9
+
+detection:
+  interval: 15 # seconds between audio detection attempts
