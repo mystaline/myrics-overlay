@@ -23,12 +23,35 @@ func NewSynchronizer(lines []models.LyricLine, startTime time.Time) *Synchronize
 // GetCurrentLine returns the lyric line that should be displayed now
 func (s *Synchronizer) GetCurrentLine() *models.LyricLine {
 	// TODO: Step 7 - Implement synchronization logic
-	return nil
+	// 1. Calculate elapsed time since startTime
+	// 2. Find the line with the largest timestamp <= elapsed time
+	// 3. Return that line (or nil if no match)
+
+	elapsed := time.Since(s.startTime)
+
+	var current *models.LyricLine
+	for i := range s.lines {
+		if s.lines[i].Timestamp <= elapsed {
+			current = &s.lines[i]
+		} else {
+			break
+		}
+	}
+
+	return current
 }
 
 // GetNextLine returns the upcoming lyric line
 func (s *Synchronizer) GetNextLine() *models.LyricLine {
 	// TODO: Step 7 - Get the next line after current
+	elapsed := time.Since(s.startTime)
+
+	for i := range s.lines {
+		if s.lines[i].Timestamp > elapsed {
+			return &s.lines[i]
+		}
+	}
+
 	return nil
 }
 
