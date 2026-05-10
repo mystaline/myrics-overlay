@@ -6,7 +6,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Config holds all application configuration
+// Config holds all application configuration.
 type Config struct {
 	ACRCloud struct {
 		AccessKey string `yaml:"access_key"`
@@ -22,15 +22,12 @@ type Config struct {
 	} `yaml:"overlay"`
 
 	Detection struct {
-		Interval int `yaml:"interval"` // seconds between detections
+		Interval int `yaml:"interval"` // seconds between detections (Linux/macOS ACRCloud)
 	} `yaml:"detection"`
 }
 
-// Load reads configuration from a YAML file
+// Load reads configuration from a YAML file.
 func Load(path string) (*Config, error) {
-	// TODO: Step 2 - Implement configuration loading
-	// Read the file, unmarshal YAML into Config struct
-
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err

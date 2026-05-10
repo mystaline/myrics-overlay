@@ -2,89 +2,156 @@ package main
 
 import (
 	"context"
+	"sync"
 	"time"
 
+	"github.com/mystaline/myrics-overlay/internal/config"
+	"github.com/mystaline/myrics-overlay/internal/lyrics"
+	"github.com/mystaline/myrics-overlay/internal/recognition"
+	"github.com/mystaline/myrics-overlay/pkg/models"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-// App struct holds the application state
+// App is the Wails application struct.
 type App struct {
-	ctx context.Context
+	ctx               context.Context
+	cfg               *config.Config
+	recognitionClient *recognition.Client
+	lyricsFetcher     *lyrics.Fetcher
+
+	mu               sync.Mutex
+	currentSong      string // "Artist|Title" key to detect song changes
+	detectionEnabled bool
+	detectionCancel  context.CancelFunc
 }
 
-// NewApp creates a new App application struct
-func NewApp() *App {
-	return &App{}
-}
-
-// startup is called when the app starts.
-func (a *App) startup(ctx context.Context) {
-	a.ctx = ctx
-
-	// TODO: Step 1 - Configure window properties
-	// Set window size and position first
-	runtime.WindowSetSize(ctx, 800, 70)
-
-	// Position at top center initially
-	runtime.WindowSetPosition(ctx, 500, 0)
-
-	// Show window before setting always-on-top (Linux compatibility)
-	runtime.WindowShow(ctx)
-
-	// Set window to always stay on top of other windows
-	runtime.WindowSetAlwaysOnTop(ctx, true)
-
-	// Goroutine to continuously detect music
-	go a.detectionLoop()
-}
-
-// detectionLoop runs continuously to detect playing music
-func (a *App) detectionLoop() {
-	// Check for music every 15 seconds
-	ticker := time.NewTicker(15 * time.Second)
-	defer ticker.Stop()
-
-	for range ticker.C {
-		// TODO: Step 2 - Capture audio snippet
-
-		// TODO: Step 3 - Recognize song using ACRCloud
-
-		// TODO: Step 4 - Fetch lyrics for detected song
-
-		// TODO: Step 5 - Parse LRC format lyrics
-
-		// TODO: Step 6 - Start lyrics synchronization
+// NewApp creates the App, wiring up all clients from config.
+func NewApp(cfg *config.Config) *App {
+	return &App{
+		cfg: cfg,
+		recognitionClient: recognition.NewClient(
+			cfg.ACRCloud.AccessKey,
+			cfg.ACRCloud.SecretKey,
+			cfg.ACRCloud.Host,
+		),
+		lyricsFetcher: lyrics.NewFetcher(),
 	}
 }
 
-// startLyricsSync synchronizes lyrics with playback time
-func (a *App) startLyricsSync(lyrics []LyricLine) {
-	// TODO: Step 7 - Track playback time
+func (a *App) startup(ctx context.Context) {
+	a.ctx = ctx
+
+	runtime.WindowSetSize(ctx, 800, 100)
+	runtime.WindowSetPosition(ctx, 500, 0)
+	runtime.WindowShow(ctx)
+	runtime.WindowSetAlwaysOnTop(ctx, true)
+
+	a.detectionEnabled = true
+	go a.startDetection()
 }
 
-// getCurrentLyrics finds the current and next lyrics based on elapsed time
-func (a *App) getCurrentLyrics(lyrics []LyricLine, elapsed time.Duration) (string, string) {
-	// Loop through lyrics and find the line matching current time
-	return "Sample current line", "Sample next line"
+// startDetection sets up a cancellable context and starts the platform-specific
+// detection mechanism. Guards against double-start from rapid ToggleDetection calls.
+func (a *App) startDetection() {
+	detCtx, cancel := context.WithCancel(a.ctx)
+
+	a.mu.Lock()
+	if a.detectionCancel != nil {
+		// Already running — a second concurrent startDetection call lost the race.
+		a.mu.Unlock()
+		cancel()
+		return
+	}
+	a.detectionCancel = cancel
+	a.mu.Unlock()
+
+	a.runDetection(detCtx)
 }
 
-// LyricLine represents a single line of lyrics with timestamp
-type LyricLine struct {
-	Timestamp time.Duration
-	Text      string
+// onSongChanged is called when detection (SMTC or ACRCloud) reports a new song.
+// Fetches and emits lyrics to the frontend.
+func (a *App) onSongChanged(title, artist string, offsetMs int64) {
+	if title == "" {
+		return
+	}
+
+	songKey := artist + "|" + title
+	a.mu.Lock()
+	if songKey == a.currentSong {
+		a.mu.Unlock()
+		return
+	}
+	a.currentSong = songKey
+	a.mu.Unlock()
+
+	runtime.LogInfof(a.ctx, "Now playing: %s - %s (offset: %dms)", artist, title, offsetMs)
+	runtime.EventsEmit(a.ctx, "now-playing", map[string]string{
+		"title":  title,
+		"artist": artist,
+	})
+
+	detectedAt := time.Now()
+
+	lyricsContent, err := a.lyricsFetcher.FetchLyrics(&models.SongInfo{
+		Title:  title,
+		Artist: artist,
+	})
+	if err != nil {
+		runtime.LogWarningf(a.ctx, "Lyrics fetch failed: %v", err)
+		runtime.EventsEmit(a.ctx, "lyrics-error", "No lyrics found for this song")
+		// Clear so the next SMTC poll can retry for the same song.
+		a.mu.Lock()
+		a.currentSong = ""
+		a.mu.Unlock()
+		return
+	}
+
+	// Compensate for the time spent fetching so sync starts at the right position.
+	adjustedOffsetMs := offsetMs + time.Since(detectedAt).Milliseconds()
+
+	parsedLyrics, err := lyrics.ParseLRC(lyricsContent)
+	if err != nil {
+		// LRCLIB returned plain (unsynced) lyrics — display as static text.
+		runtime.EventsEmit(a.ctx, "lyrics-plain", lyricsContent)
+		return
+	}
+
+	runtime.LogInfof(a.ctx, "Lyrics loaded: %d lines", len(parsedLyrics))
+	runtime.EventsEmit(a.ctx, "lyrics-found", map[string]any{
+		"lines":    parsedLyrics,
+		"offsetMs": adjustedOffsetMs,
+	})
 }
 
-// Exported methods (callable from frontend)
-
-// SearchSong allows manual song search from the frontend
-func (a *App) SearchSong(title string) error {
-	// TODO: Implement manual search
-	// Fetch lyrics for the given song title
-	return nil
+// SearchSong triggers a manual lyrics lookup from the frontend.
+func (a *App) SearchSong(title, artist string) {
+	a.onSongChanged(title, artist, 0)
 }
 
-// ToggleDetection starts or stops automatic music detection
+// TriggerTest triggers a test song without audio capture (dev/debug helper).
+func (a *App) TriggerTest(title, artist string) {
+	runtime.LogInfof(a.ctx, "Test trigger: %s - %s", artist, title)
+	a.mu.Lock()
+	a.currentSong = ""
+	a.mu.Unlock()
+	a.onSongChanged(title, artist, 0)
+}
+
+// ToggleDetection pauses or resumes detection from the frontend.
 func (a *App) ToggleDetection(enabled bool) {
-	// TODO: Implement detection toggle
-	// Start or stop the detection loop
+	a.mu.Lock()
+	same := enabled == a.detectionEnabled
+	a.detectionEnabled = enabled
+	if !enabled && a.detectionCancel != nil {
+		a.detectionCancel()
+		a.detectionCancel = nil
+	}
+	a.mu.Unlock()
+
+	if same {
+		return
+	}
+	if enabled {
+		go a.startDetection()
+	}
 }
