@@ -3,10 +3,10 @@ package main
 import (
 	"embed"
 
+	"github.com/mystaline/myrics-overlay/internal/config"
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
-	"github.com/wailsapp/wails/v2/pkg/options/linux"
 	"github.com/wailsapp/wails/v2/pkg/options/windows"
 )
 
@@ -14,41 +14,31 @@ import (
 var assets embed.FS
 
 func main() {
-	// TODO: Create a new App instance
-	app := NewApp()
+	cfg, err := config.Load("configs/config.yaml")
+	if err != nil {
+		panic("failed to load config: " + err.Error())
+	}
 
-	// TODO: Configure Wails application
-	err := wails.Run(&options.App{
+	app := NewApp(cfg)
+
+	if err = wails.Run(&options.App{
+		Title:  "Myrics",
+		Width:  800,
+		Height: 100,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
-		DisableResize: true,
-		// TODO: Set transparent background
-		// Alpha value 0 makes the window background fully transparent
+		DisableResize:    true,
 		BackgroundColour: &options.RGBA{R: 0, G: 0, B: 0, A: 0},
-
-		// TODO: Set startup callback
-		OnStartup: app.startup,
-
-		// TODO: Bind Go methods to frontend
-		Bind: []interface{}{
-			app,
-		},
-
-		// TODO: Enable frameless window (no title bar)
-		Frameless: true,
-
-		// TODO: Platform-specific options
-		Linux: &linux.Options{
-			// Enable window transparency on Linux
-			WindowIsTranslucent: true,
-		},
-
+		OnStartup:        app.startup,
+		Bind:             []any{app},
+		Frameless:        true,
 		Windows: &windows.Options{
-			WindowIsTranslucent: true,
+			WindowIsTranslucent:  true,
+			WebviewIsTransparent: true,
+			DisableWindowIcon:    true,
 		},
-	})
-	if err != nil {
+	}); err != nil {
 		panic(err)
 	}
 }
