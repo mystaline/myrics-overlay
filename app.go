@@ -23,6 +23,7 @@ type App struct {
 	currentSong      string // "Artist|Title" key to detect song changes
 	detectionEnabled bool
 	detectionCancel  context.CancelFunc
+	fetchCancel      context.CancelFunc // cancels any in-progress lyrics fetch
 }
 
 // NewApp creates the App, wiring up all clients from config.
@@ -82,7 +83,14 @@ func (a *App) onSongChanged(title, artist string, offsetMs int64) {
 		return
 	}
 	a.currentSong = songKey
+	// Cancel any in-progress fetch for the previous song.
+	if a.fetchCancel != nil {
+		a.fetchCancel()
+	}
+	fetchCtx, fetchCancel := context.WithCancel(a.ctx)
+	a.fetchCancel = fetchCancel
 	a.mu.Unlock()
+	defer fetchCancel()
 
 	runtime.LogInfof(a.ctx, "Now playing: %s - %s (offset: %dms)", artist, title, offsetMs)
 	runtime.EventsEmit(a.ctx, "now-playing", map[string]string{
@@ -92,10 +100,14 @@ func (a *App) onSongChanged(title, artist string, offsetMs int64) {
 
 	detectedAt := time.Now()
 
-	lyricsContent, err := a.lyricsFetcher.FetchLyrics(&models.SongInfo{
+	lyricsContent, err := a.lyricsFetcher.FetchLyrics(fetchCtx, &models.SongInfo{
 		Title:  title,
 		Artist: artist,
 	})
+	if fetchCtx.Err() != nil {
+		// Song changed while we were fetching — discard result.
+		return
+	}
 	if err != nil {
 		runtime.LogWarningf(a.ctx, "Lyrics fetch failed: %v", err)
 		runtime.EventsEmit(a.ctx, "lyrics-error", "No lyrics found for this song")
@@ -106,8 +118,9 @@ func (a *App) onSongChanged(title, artist string, offsetMs int64) {
 		return
 	}
 
-	// Compensate for the time spent fetching so sync starts at the right position.
-	adjustedOffsetMs := offsetMs + time.Since(detectedAt).Milliseconds()
+	// Compensate for fetch time, then nudge back 1.5s to correct for SMTC
+	// position reporting slightly ahead of actual playback.
+	adjustedOffsetMs := offsetMs + time.Since(detectedAt).Milliseconds() - 1500
 
 	parsedLyrics, err := lyrics.ParseLRC(lyricsContent)
 	if err != nil {
