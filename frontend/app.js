@@ -1,6 +1,7 @@
 let lyricsLines = [];
 let currentLineIndex = -1;
 let startTime = 0;
+let pausedAt = null; // performance.now() timestamp when paused
 let animationFrameId = null;
 let detectionEnabled = true;
 
@@ -49,6 +50,32 @@ window.runtime.EventsOn("lyrics-plain", (text) => {
   const firstLine = (text || "").split(/\r?\n/).find((l) => l.trim()) || "";
   document.getElementById("current-line").textContent = firstLine;
   document.getElementById("next-line").textContent = "(no sync available)";
+});
+
+
+window.runtime.EventsOn("playback-paused", () => {
+  if (animationFrameId) {
+    cancelAnimationFrame(animationFrameId);
+    animationFrameId = null;
+  }
+  pausedAt = performance.now();
+});
+
+window.runtime.EventsOn("playback-resumed", (posMs) => {
+  if (lyricsLines.length === 0) return;
+  // Recalibrate from SMTC position if available, otherwise shift by pause duration.
+  if (posMs > 0) {
+    startTime = performance.now() - posMs;
+  } else if (pausedAt !== null) {
+    startTime += performance.now() - pausedAt;
+  }
+  pausedAt = null;
+  if (!animationFrameId) updateLyrics();
+});
+
+window.runtime.EventsOn("playback-seeked", (posMs) => {
+  if (lyricsLines.length === 0 || posMs <= 0) return;
+  startTime = performance.now() - posMs;
 });
 
 window.runtime.EventsOn("lyrics-error", (msg) => {
