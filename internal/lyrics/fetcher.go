@@ -1,6 +1,7 @@
 package lyrics
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -24,12 +25,17 @@ func NewFetcher() *Fetcher {
 
 // FetchLyrics retrieves LRC lyrics for a song from LRCLIB.
 // Returns synced LRC content when available, plain text otherwise.
-func (f *Fetcher) FetchLyrics(song *models.SongInfo) (string, error) {
+// Respects ctx cancellation — returns immediately if the context is cancelled.
+func (f *Fetcher) FetchLyrics(ctx context.Context, song *models.SongInfo) (string, error) {
 	params := url.Values{}
 	params.Add("q", song.Artist+" "+song.Title)
 	apiURL := "https://lrclib.net/api/search?" + params.Encode()
 
-	resp, err := f.client.Get(apiURL)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to build request: %w", err)
+	}
+	resp, err := f.client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("failed to call LRCLIB: %w", err)
 	}
@@ -55,12 +61,16 @@ func (f *Fetcher) FetchLyrics(song *models.SongInfo) (string, error) {
 		return "", fmt.Errorf("no lyrics found")
 	}
 
-	result := results[0]
-	if result.SyncedLyrics != "" {
-		return result.SyncedLyrics, nil
+	// Prefer the first result that has synced lyrics, then fall back to plain.
+	for _, r := range results {
+		if r.SyncedLyrics != "" {
+			return r.SyncedLyrics, nil
+		}
 	}
-	if result.PlainLyrics != "" {
-		return result.PlainLyrics, nil
+	for _, r := range results {
+		if r.PlainLyrics != "" {
+			return r.PlainLyrics, nil
+		}
 	}
 
 	return "", fmt.Errorf("no lyrics content found")
