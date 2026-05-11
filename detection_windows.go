@@ -17,7 +17,11 @@ func (a *App) runDetection(ctx context.Context) {
 	watcher := smtc.NewWatcher(
 		3*time.Second,
 		func(np smtc.NowPlaying) { a.onSongChanged(np.Title, np.Artist, np.PositionMs) },
+		nil,
 		func(err error) { runtime.LogWarningf(a.ctx, "SMTC error: %v", err) },
 	)
+	watcher.OnPause = func() { runtime.EventsEmit(a.ctx, "playback-paused") }
+	watcher.OnPlay = func(posMs int64) { runtime.EventsEmit(a.ctx, "playback-resumed", posMs) }
+	watcher.OnSeek = func(posMs int64) { runtime.EventsEmit(a.ctx, "playback-seeked", posMs) }
 	watcher.Start(ctx)
 }

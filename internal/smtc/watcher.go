@@ -23,18 +23,20 @@ type NowPlaying struct {
 const fieldSep = "\x1f"
 
 // Watcher reads Windows System Media Transport Controls via a single long-running
-// PowerShell process. One spawn at startup; outputs a line only when the song changes.
+// PowerShell process. One spawn at startup; outputs a line on song change or playback state change.
 type Watcher struct {
-	interval time.Duration // kept for API compat; PS script handles its own sleep
+	OnPause  func()
+	OnPlay   func(posMs int64)
+	OnSeek   func(posMs int64)
 	onChange func(NowPlaying)
 	onError  func(error)
 	mu       sync.Mutex
 	last     NowPlaying
 }
 
-// NewWatcher creates a watcher. onError is called when the helper process fails
-// to start or exits unexpectedly; pass nil to silence it.
-func NewWatcher(_ time.Duration, onChange func(NowPlaying), onError func(error)) *Watcher {
+// NewWatcher creates a watcher. onError is called when the helper process fails; pass nil to silence.
+// Set OnPause and OnPlay after construction to handle playback state changes.
+func NewWatcher(_ time.Duration, onChange func(NowPlaying), _ func(int64), onError func(error)) *Watcher {
 	return &Watcher{onChange: onChange, onError: onError}
 }
 
@@ -54,36 +56,82 @@ func (w *Watcher) Start(ctx context.Context) {
 	}()
 }
 
-// smtcScript is a PowerShell polling loop that runs inside a single persistent process.
-// It outputs "Artist<US>Title<US>PositionMs" only when the song title/artist changes,
-// using the ASCII Unit Separator (0x1F) to avoid conflicts with artist/title content.
+// smtcScript is a PowerShell polling loop compatible with both PS 5.1 and PS 7.
+// Outputs message types separated by the ASCII Unit Separator (0x1F):
+//
+//	SONG<US>Artist<US>Title  — on song title/artist change
+//	PAUSE                    — on playback paused/stopped
+//	PLAY                     — on playback resumed
 const smtcScript = `
 $ErrorActionPreference = 'SilentlyContinue'
+Add-Type -AssemblyName System.Runtime.WindowsRuntime
 $null = [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager,Windows.Media.Control,ContentType=WindowsRuntime]
+
+$asTaskMethod = [System.WindowsRuntimeSystemExtensions].GetMethods() |
+    Where-Object { $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.IsGenericMethodDefinition } |
+    Select-Object -First 1
+
+function WinRT-Await($asyncOp, [Type]$resultType) {
+    $task = $asTaskMethod.MakeGenericMethod($resultType).Invoke($null, @($asyncOp))
+    $task.Wait(-1) | Out-Null
+    $task.Result
+}
+
+$mgrType   = [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]
+$assembly  = $mgrType.Assembly
+$propsType = $assembly.GetType('Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties')
+
 $sep = [char]0x1F
 $lastKey = ''
+$lastPlaying = $true
+$lastMs = 0
 
 while ($true) {
     try {
-        $mgr = [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync().GetAwaiter().GetResult()
+        $mgr = WinRT-Await ($mgrType::RequestAsync()) $mgrType
         $s = $mgr.GetCurrentSession()
         if ($null -ne $s) {
-            $p = $s.TryGetMediaPropertiesAsync().GetAwaiter().GetResult()
-            if ($null -ne $p -and $p.Title -ne '') {
-                $key = "$($p.Artist)##SEP##$($p.Title)"
-                if ($key -ne $lastKey) {
-                    $t = $s.GetTimelineProperties()
-                    $ms = [long]$t.Position.TotalMilliseconds
-                    "$($p.Artist)$sep$($p.Title)$sep$ms"
+            $playing = $false
+            try { $playing = $s.GetPlaybackInfo().PlaybackStatus.ToString() -eq 'Playing' } catch {}
+
+            $ms = 0
+            try { $ms = [long]$s.GetTimelineProperties().Position.TotalMilliseconds } catch {}
+
+            if ($playing -ne $lastPlaying) {
+                if ($playing) { "PLAY$sep$ms" } else { "PAUSE" }
+                [Console]::Out.Flush()
+                $lastPlaying = $playing
+                $lastMs = $ms
+            } elseif ($playing) {
+                # Detect seek: position jumped more than 3s away from expected
+                $expected = $lastMs + 1000
+                $drift = [Math]::Abs($ms - $expected)
+                if ($drift -gt 3000) {
+                    "SEEK$sep$ms"
                     [Console]::Out.Flush()
-                    $lastKey = $key
+                }
+                $lastMs = $ms
+
+                $p = WinRT-Await ($s.TryGetMediaPropertiesAsync()) $propsType
+                if ($null -ne $p -and $p.Title -ne '') {
+                    $key = "$($p.Artist)##SEP##$($p.Title)"
+                    if ($key -ne $lastKey) {
+                        "SONG$sep$($p.Artist)$sep$($p.Title)"
+                        [Console]::Out.Flush()
+                        $lastKey = $key
+                    }
                 }
             }
         } else {
+            if ($lastPlaying) {
+                "PAUSE"
+                [Console]::Out.Flush()
+                $lastPlaying = $false
+            }
             $lastKey = ''
         }
     } catch {}
-    Start-Sleep -Milliseconds 3000
+    Start-Sleep -Milliseconds 1000
 }
 `
 
@@ -114,30 +162,48 @@ func (w *Watcher) run(ctx context.Context) {
 			continue
 		}
 
-		parts := strings.SplitN(line, fieldSep, 3)
+		parts := strings.SplitN(line, fieldSep, 4)
 		if len(parts) < 2 {
 			continue
 		}
 
-		np := NowPlaying{
-			Artist: strings.TrimSpace(parts[0]),
-			Title:  strings.TrimSpace(parts[1]),
-		}
-		if len(parts) == 3 {
-			if _, err := fmt.Sscan(parts[2], &np.PositionMs); err != nil {
-				np.PositionMs = 0
+		switch parts[0] {
+		case "SONG":
+			if len(parts) < 3 {
+				continue
+			}
+			np := NowPlaying{
+				Artist: strings.TrimSpace(parts[1]),
+				Title:  strings.TrimSpace(parts[2]),
+			}
+			w.mu.Lock()
+			w.last = np
+			w.mu.Unlock()
+			w.onChange(np)
+
+		case "PAUSE":
+			if w.OnPause != nil {
+				w.OnPause()
+			}
+
+		case "PLAY":
+			var posMs int64
+			if len(parts) >= 2 {
+				fmt.Sscan(parts[1], &posMs)
+			}
+			if w.OnPlay != nil {
+				w.OnPlay(posMs)
+			}
+
+		case "SEEK":
+			var posMs int64
+			if len(parts) >= 2 {
+				fmt.Sscan(parts[1], &posMs)
+			}
+			if w.OnSeek != nil {
+				w.OnSeek(posMs)
 			}
 		}
-
-		// PS script only outputs on song change, so every line is a new song.
-		// Reset position — stale WinRT timeline data can appear at track boundaries.
-		np.PositionMs = 0
-
-		w.mu.Lock()
-		w.last = np
-		w.mu.Unlock()
-
-		w.onChange(np)
 	}
 
 	cmd.Wait()
