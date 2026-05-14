@@ -9,7 +9,7 @@ import (
 
 var (
 	reBrackets   = regexp.MustCompile(`\s*\[[^\]]*\]\s*`)
-	reParenNoise = regexp.MustCompile(`(?i)\s*\((official[^)]*|lyric[^)]*|music\s*video|mv|pv|full|audio[^)]*|ver(?:\.|sion)?[^)]*)\)\s*`)
+	reParenNoise = regexp.MustCompile(`(?i)\s*\((official[^)]*|lyric[^)]*|music\s*video|mv|pv|full[^)]*|audio[^)]*|ver(?:\.|sion)?[^)]*)\)\s*`)
 )
 
 // cleanSong strips YT Music noise (bracket tags, official video markers) from title and artist.

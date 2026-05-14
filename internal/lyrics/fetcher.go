@@ -127,11 +127,11 @@ func (f *Fetcher) fetchFromLRCLIB(ctx context.Context, song *models.SongInfo) (s
 				}
 			}
 		}
-		// pass 2: title contains (but result title must not be longer by more than 10 chars)
+		// pass 2: title contains (but result title must not be longer by more than 5 chars)
 		for _, r := range results {
 			rTitle := strings.ToLower(strings.TrimSpace(r.TrackName))
 			if strings.Contains(rTitle, titleNorm) &&
-				len(rTitle)-len(titleNorm) <= 10 &&
+				len(rTitle)-len(titleNorm) <= 5 &&
 				strings.Contains(strings.ToLower(r.ArtistName), artistNorm) {
 				if synced && r.SyncedLyrics != "" {
 					log.Printf("[lrclib] fuzzy match: %q by %q", r.TrackName, r.ArtistName)
