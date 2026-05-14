@@ -15,6 +15,9 @@ func main() {
 	root := &cobra.Command{
 		Use:   "myrics",
 		Short: "Myrics dev CLI — build, install, and run the Myrics overlay",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return cmd.Help()
+		},
 	}
 
 	root.AddCommand(
@@ -94,7 +97,7 @@ func cmdBuild() *cobra.Command {
 func cmdInstall() *cobra.Command {
 	return &cobra.Command{
 		Use:   "install",
-		Short: "Build and install myrics to GOPATH/bin (adds it to PATH)",
+		Short: "Build and install myrics-overlay to GOPATH/bin",
 		RunE: func(_ *cobra.Command, _ []string) error {
 			if err := run("go", "mod", "tidy"); err != nil {
 				return err
@@ -108,7 +111,7 @@ func cmdInstall() *cobra.Command {
 				return fmt.Errorf("build output not found at %s", src)
 			}
 
-			dst := installPath()
+			dst := overlayInstallPath()
 			if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 				return err
 			}
@@ -124,9 +127,9 @@ func cmdInstall() *cobra.Command {
 func cmdRun() *cobra.Command {
 	return &cobra.Command{
 		Use:   "run",
-		Short: "Launch the installed myrics binary",
+		Short: "Launch the installed myrics-overlay binary",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			p := installPath()
+			p := overlayInstallPath()
 			if _, err := os.Stat(p); os.IsNotExist(err) {
 				return fmt.Errorf("not installed — run 'myrics install' first")
 			}
@@ -174,9 +177,9 @@ func cmdClean() *cobra.Command {
 func cmdUninstall() *cobra.Command {
 	return &cobra.Command{
 		Use:   "uninstall",
-		Short: "Remove myrics from GOPATH/bin",
+		Short: "Remove myrics-overlay from GOPATH/bin",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			p := installPath()
+			p := overlayInstallPath()
 			if _, err := os.Stat(p); os.IsNotExist(err) {
 				fmt.Printf("Nothing to remove at %s\n", p)
 				return nil
@@ -236,6 +239,6 @@ func buildOutputPath() string {
 	return filepath.Join("build", "bin", exeName("myrics-overlay"))
 }
 
-func installPath() string {
-	return filepath.Join(gobin(), exeName("myrics"))
+func overlayInstallPath() string {
+	return filepath.Join(gobin(), exeName("myrics-overlay"))
 }
