@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/mystaline/myrics-overlay/internal/smtc"
@@ -20,8 +21,14 @@ func (a *App) runDetection(ctx context.Context) {
 		nil,
 		func(err error) { runtime.LogWarningf(a.ctx, "SMTC error: %v", err) },
 	)
-	watcher.OnPause = func() { runtime.EventsEmit(a.ctx, "playback-paused") }
-	watcher.OnPlay = func(posMs int64) { runtime.EventsEmit(a.ctx, "playback-resumed", posMs) }
-	watcher.OnSeek = func(posMs int64) { runtime.EventsEmit(a.ctx, "playback-seeked", posMs) }
+	watcher.OnPause = func(_ int64) { runtime.EventsEmit(a.ctx, "playback-paused") }
+	watcher.OnPlay = func(posMs int64) {
+		fmt.Printf("Play event received with position: %d\n", posMs)
+		runtime.EventsEmit(a.ctx, "playback-resumed", posMs)
+	}
+	watcher.OnSeek = func(posMs int64) {
+		fmt.Printf("Seek event received with position: %d\n", posMs)
+		runtime.EventsEmit(a.ctx, "playback-seeked", posMs)
+	}
 	watcher.Start(ctx)
 }

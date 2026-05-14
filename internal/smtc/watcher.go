@@ -25,7 +25,7 @@ const fieldSep = "\x1f"
 // Watcher reads Windows System Media Transport Controls via a single long-running
 // PowerShell process. One spawn at startup; outputs a line on song change or playback state change.
 type Watcher struct {
-	OnPause  func()
+	OnPause  func(posMs int64)
 	OnPlay   func(posMs int64)
 	OnSeek   func(posMs int64)
 	onChange func(NowPlaying)
@@ -98,8 +98,15 @@ while ($true) {
             try { $ms = [long]$s.GetTimelineProperties().Position.TotalMilliseconds } catch {}
 
             if ($playing -ne $lastPlaying) {
-                if ($playing) { "PLAY$sep$ms" } else { "PAUSE" }
-                [Console]::Out.Flush()
+                if ($playing) {
+                    "PLAY$sep$ms"
+                    [Console]::Out.Flush()
+                    # Position dropped significantly — likely a new song started
+                    if (($lastMs - $ms) -gt 5000) { $lastKey = '' }
+                } else {
+                    "PAUSE$sep$ms"
+                    [Console]::Out.Flush()
+                }
                 $lastPlaying = $playing
                 $lastMs = $ms
             } elseif ($playing) {
@@ -116,7 +123,7 @@ while ($true) {
                 if ($null -ne $p -and $p.Title -ne '') {
                     $key = "$($p.Artist)##SEP##$($p.Title)"
                     if ($key -ne $lastKey) {
-                        "SONG$sep$($p.Artist)$sep$($p.Title)"
+                        "SONG$sep$($p.Artist)$sep$($p.Title)$sep$ms"
                         [Console]::Out.Flush()
                         $lastKey = $key
                     }
@@ -163,7 +170,7 @@ func (w *Watcher) run(ctx context.Context) {
 		}
 
 		parts := strings.SplitN(line, fieldSep, 4)
-		if len(parts) < 2 {
+		if len(parts) == 0 {
 			continue
 		}
 
@@ -172,9 +179,14 @@ func (w *Watcher) run(ctx context.Context) {
 			if len(parts) < 3 {
 				continue
 			}
+			var posMs int64
+			if len(parts) >= 4 {
+				fmt.Sscan(parts[3], &posMs)
+			}
 			np := NowPlaying{
-				Artist: strings.TrimSpace(parts[1]),
-				Title:  strings.TrimSpace(parts[2]),
+				Artist:     strings.TrimSpace(parts[1]),
+				Title:      strings.TrimSpace(parts[2]),
+				PositionMs: posMs,
 			}
 			w.mu.Lock()
 			w.last = np
@@ -182,8 +194,13 @@ func (w *Watcher) run(ctx context.Context) {
 			w.onChange(np)
 
 		case "PAUSE":
+			var posMs int64
+			if len(parts) >= 2 {
+				fmt.Sscan(parts[1], &posMs)
+			}
+			fmt.Printf("[smtc] PAUSE: %dms\n", posMs)
 			if w.OnPause != nil {
-				w.OnPause()
+				w.OnPause(posMs)
 			}
 
 		case "PLAY":
@@ -191,6 +208,7 @@ func (w *Watcher) run(ctx context.Context) {
 			if len(parts) >= 2 {
 				fmt.Sscan(parts[1], &posMs)
 			}
+			fmt.Printf("[smtc] PLAY: %dms\n", posMs)
 			if w.OnPlay != nil {
 				w.OnPlay(posMs)
 			}
@@ -200,9 +218,11 @@ func (w *Watcher) run(ctx context.Context) {
 			if len(parts) >= 2 {
 				fmt.Sscan(parts[1], &posMs)
 			}
+			fmt.Printf("[smtc] SEEK: %dms\n", posMs)
 			if w.OnSeek != nil {
 				w.OnSeek(posMs)
 			}
+
 		}
 	}
 

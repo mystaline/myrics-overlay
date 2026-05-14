@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -84,6 +85,7 @@ func (a *App) startDetection() {
 // onSongChanged is called when detection (SMTC or ACRCloud) reports a new song.
 // Fetches and emits lyrics to the frontend.
 func (a *App) onSongChanged(title, artist string, offsetMs int64) {
+	startTime := time.Now()
 	if title == "" {
 		return
 	}
@@ -111,8 +113,6 @@ func (a *App) onSongChanged(title, artist string, offsetMs int64) {
 		"artist": artist,
 	})
 
-	detectedAt := time.Now()
-
 	lyricsContent, err := a.lyricsFetcher.FetchLyrics(fetchCtx, &models.SongInfo{
 		Title:  title,
 		Artist: artist,
@@ -131,10 +131,6 @@ func (a *App) onSongChanged(title, artist string, offsetMs int64) {
 		return
 	}
 
-	// Compensate for fetch time, then nudge back 1.5s to correct for SMTC
-	// position reporting slightly ahead of actual playback.
-	adjustedOffsetMs := offsetMs + time.Since(detectedAt).Milliseconds() - 1500
-
 	writeLyricsFile(lyricsContent)
 	parsedLyrics, err := lyrics.ParseLRC(lyricsContent)
 	if err != nil {
@@ -144,9 +140,10 @@ func (a *App) onSongChanged(title, artist string, offsetMs int64) {
 	}
 
 	runtime.LogInfof(a.ctx, "Lyrics loaded: %d lines", len(parsedLyrics))
+	fmt.Printf("Lyrics found with offset: %d ms\n", offsetMs+time.Since(startTime).Milliseconds())
 	runtime.EventsEmit(a.ctx, "lyrics-found", map[string]any{
 		"lines":    parsedLyrics,
-		"offsetMs": adjustedOffsetMs,
+		"offsetMs": offsetMs + time.Since(startTime).Milliseconds(),
 	})
 }
 

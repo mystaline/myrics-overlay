@@ -30,7 +30,7 @@ window.runtime.EventsOn("lyrics-found", (data) => {
   const offsetMs = data.offsetMs || 0;
 
   // Shift startTime so elapsed time in updateLyrics() matches song position.
-  startTime = performance.now() - offsetMs;
+  startTime = performance.now() - offsetMs - 400;
   currentLineIndex = -1;
 
   document.getElementById("current-line").textContent = "";
@@ -52,7 +52,6 @@ window.runtime.EventsOn("lyrics-plain", (text) => {
   document.getElementById("next-line").textContent = "(no sync available)";
 });
 
-
 window.runtime.EventsOn("playback-paused", () => {
   if (animationFrameId) {
     cancelAnimationFrame(animationFrameId);
@@ -65,9 +64,9 @@ window.runtime.EventsOn("playback-resumed", (posMs) => {
   if (lyricsLines.length === 0) return;
   // Recalibrate from SMTC position if available, otherwise shift by pause duration.
   if (posMs > 0) {
-    startTime = performance.now() - posMs;
+    startTime = performance.now() - posMs - 400; // Nudge back 400ms to better align with lyric timing
   } else if (pausedAt !== null) {
-    startTime += performance.now() - pausedAt;
+    startTime += performance.now() - pausedAt - 400; // Nudge back 400ms to better align with lyric timing
   }
   pausedAt = null;
   if (!animationFrameId) updateLyrics();
@@ -75,7 +74,7 @@ window.runtime.EventsOn("playback-resumed", (posMs) => {
 
 window.runtime.EventsOn("playback-seeked", (posMs) => {
   if (lyricsLines.length === 0 || posMs <= 0) return;
-  startTime = performance.now() - posMs;
+  startTime = performance.now() - posMs - 400;
 });
 
 window.runtime.EventsOn("lyrics-error", (msg) => {
@@ -111,9 +110,7 @@ function updateLyrics() {
       document.getElementById("current-line").textContent =
         lyricsLines[activeIndex].Text;
       const next = lyricsLines[activeIndex + 1];
-      document.getElementById("next-line").textContent = next
-        ? next.Text
-        : "";
+      document.getElementById("next-line").textContent = next ? next.Text : "";
     }
   }
 
