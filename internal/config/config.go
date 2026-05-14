@@ -24,6 +24,12 @@ type Config struct {
 	Detection struct {
 		Interval int `yaml:"interval"` // seconds between detections (Linux/macOS ACRCloud)
 	} `yaml:"detection"`
+
+	Lyrics struct {
+		LRCLibURL        string `yaml:"lrclib_url"`
+		NeteaseSearchURL string `yaml:"netease_search_url"`
+		NeteaseLyricsURL string `yaml:"netease_lyrics_url"`
+	} `yaml:"lyrics"`
 }
 
 // Load reads configuration from a YAML file.

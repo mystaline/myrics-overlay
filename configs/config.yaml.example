@@ -10,3 +10,8 @@ overlay:
 
 detection:
   interval: 15  # seconds between audio detection attempts (Linux/macOS only)
+
+lyrics:
+  lrclib_url: "https://lrclib.net/api/search"
+  netease_search_url: "https://music.163.com/api/search/get"
+  netease_lyrics_url: "https://music.163.com/api/song/lyric"

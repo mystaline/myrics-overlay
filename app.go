@@ -35,7 +35,7 @@ func NewApp(cfg *config.Config) *App {
 			cfg.ACRCloud.SecretKey,
 			cfg.ACRCloud.Host,
 		),
-		lyricsFetcher: lyrics.NewFetcher(),
+		lyricsFetcher: lyrics.NewFetcher(cfg),
 	}
 }
 
