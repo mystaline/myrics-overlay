@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -11,6 +13,16 @@ import (
 	"github.com/mystaline/myrics-overlay/pkg/models"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
+
+var lyricsFilePath = filepath.Join(os.TempDir(), "myrics-current.lrc")
+
+func writeLyricsFile(content string) {
+	_ = os.WriteFile(lyricsFilePath, []byte(content), 0o644)
+}
+
+func deleteLyricsFile() {
+	_ = os.Remove(lyricsFilePath)
+}
 
 // App is the Wails application struct.
 type App struct {
@@ -92,6 +104,7 @@ func (a *App) onSongChanged(title, artist string, offsetMs int64) {
 	a.mu.Unlock()
 	defer fetchCancel()
 
+	deleteLyricsFile()
 	runtime.LogInfof(a.ctx, "Now playing: %s - %s (offset: %dms)", artist, title, offsetMs)
 	runtime.EventsEmit(a.ctx, "now-playing", map[string]string{
 		"title":  title,
@@ -122,6 +135,7 @@ func (a *App) onSongChanged(title, artist string, offsetMs int64) {
 	// position reporting slightly ahead of actual playback.
 	adjustedOffsetMs := offsetMs + time.Since(detectedAt).Milliseconds() - 1500
 
+	writeLyricsFile(lyricsContent)
 	parsedLyrics, err := lyrics.ParseLRC(lyricsContent)
 	if err != nil {
 		// LRCLIB returned plain (unsynced) lyrics — display as static text.

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"embed"
 
 	"github.com/mystaline/myrics-overlay/internal/config"
@@ -31,6 +32,7 @@ func main() {
 		DisableResize:    true,
 		BackgroundColour: &options.RGBA{R: 0, G: 0, B: 0, A: 0},
 		OnStartup:        app.startup,
+		OnShutdown:       func(ctx context.Context) { deleteLyricsFile() },
 		Bind:             []any{app},
 		Frameless:        true,
 		Windows: &windows.Options{
