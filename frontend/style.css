@@ -7,9 +7,15 @@
   -webkit-user-select: none;
 }
 
+:root {
+  --font-size: 18px;
+  --font-family: "Inter", "Segoe UI", "Roboto", sans-serif;
+  --box-opacity: 0.55;
+}
+
 body {
   background: transparent;
-  font-family: "Inter", "Segoe UI", "Roboto", sans-serif;
+  font-family: var(--font-family);
   overflow: hidden;
 }
 
@@ -22,7 +28,7 @@ body {
 }
 
 .lyrics-box {
-  background: rgba(0, 0, 0, 0.55);
+  background: rgba(0, 0, 0, var(--box-opacity));
   padding: 10px 18px 12px;
   min-width: 700px;
   max-width: 80vw;
@@ -73,7 +79,7 @@ body {
 /* ── Lyrics ─────────────────────────────────────────────────────────────────── */
 
 .current {
-  font-size: 18px;
+  font-size: var(--font-size);
   font-weight: 600;
   color: #ffffff;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
@@ -83,7 +89,7 @@ body {
 }
 
 .next {
-  font-size: 13px;
+  font-size: calc(var(--font-size) * 0.72);
   color: rgba(255, 255, 255, 0.28);
   font-style: italic;
   min-height: 1.3em;

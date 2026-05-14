@@ -147,6 +147,16 @@ func (a *App) onSongChanged(title, artist string, offsetMs int64) {
 	})
 }
 
+// GetOverlayConfig returns overlay display settings for the frontend to apply on load.
+func (a *App) GetOverlayConfig() map[string]any {
+	return map[string]any{
+		"fontSize":   a.cfg.Overlay.FontSize,
+		"fontFamily": a.cfg.Overlay.FontFamily,
+		"position":   a.cfg.Overlay.Position,
+		"opacity":    a.cfg.Overlay.Opacity,
+	}
+}
+
 // SearchSong triggers a manual lyrics lookup from the frontend.
 func (a *App) SearchSong(title, artist string) {
 	a.onSongChanged(title, artist, 0)

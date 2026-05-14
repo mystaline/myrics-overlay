@@ -5,6 +5,28 @@ let pausedAt = null; // performance.now() timestamp when paused
 let animationFrameId = null;
 let detectionEnabled = true;
 
+// ── Overlay config ───────────────────────────────────────────────────────────
+
+function applyOverlayConfig(cfg) {
+  const root = document.documentElement;
+  if (cfg.fontSize)   root.style.setProperty("--font-size",   cfg.fontSize + "px");
+  if (cfg.fontFamily) root.style.setProperty("--font-family", cfg.fontFamily);
+  if (cfg.opacity)    root.style.setProperty("--box-opacity", cfg.opacity);
+  if (cfg.position) {
+    const container = document.querySelector(".overlay-container");
+    if (container) {
+      const align = cfg.position === "top" ? "flex-start"
+                  : cfg.position === "bottom" ? "flex-end"
+                  : "center";
+      container.style.alignItems = align;
+    }
+  }
+}
+
+window.addEventListener("load", () => {
+  window.go.main.App.GetOverlayConfig().then(applyOverlayConfig);
+});
+
 // ── Now Playing ──────────────────────────────────────────────────────────────
 
 window.runtime.EventsOn("now-playing", (info) => {

@@ -5,8 +5,9 @@ acrcloud:
 
 overlay:
   font_size: 18
-  position: "top"
-  opacity: 0.9
+  font_family: "Inter, Segoe UI, Roboto"
+  position: "center"
+  opacity: 0.55
 
 detection:
   interval: 15  # seconds between audio detection attempts (Linux/macOS only)
