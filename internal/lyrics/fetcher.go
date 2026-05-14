@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/mystaline/myrics-overlay/internal/config"
@@ -96,6 +97,8 @@ func (f *Fetcher) fetchFromLRCLIB(ctx context.Context, song *models.SongInfo) (s
 	}
 
 	var results []struct {
+		TrackName    string `json:"trackName"`
+		ArtistName   string `json:"artistName"`
 		SyncedLyrics string `json:"syncedLyrics"`
 		PlainLyrics  string `json:"plainLyrics"`
 	}
@@ -106,16 +109,50 @@ func (f *Fetcher) fetchFromLRCLIB(ctx context.Context, song *models.SongInfo) (s
 		return "", fmt.Errorf("no lyrics found")
 	}
 
-	for _, r := range results {
-		if r.SyncedLyrics != "" {
-			return r.SyncedLyrics, nil
+	titleNorm := strings.ToLower(strings.TrimSpace(song.Title))
+	artistNorm := strings.ToLower(strings.TrimSpace(song.Artist))
+
+	pick := func(synced bool) (string, bool) {
+		// pass 1: exact title + artist
+		for _, r := range results {
+			if strings.EqualFold(strings.TrimSpace(r.TrackName), song.Title) &&
+				strings.Contains(strings.ToLower(r.ArtistName), artistNorm) {
+				if synced && r.SyncedLyrics != "" {
+					log.Printf("[lrclib] exact match: %q by %q", r.TrackName, r.ArtistName)
+					return r.SyncedLyrics, true
+				}
+				if !synced && r.PlainLyrics != "" {
+					log.Printf("[lrclib] exact match (plain): %q by %q", r.TrackName, r.ArtistName)
+					return r.PlainLyrics, true
+				}
+			}
 		}
-	}
-	for _, r := range results {
-		if r.PlainLyrics != "" {
-			return r.PlainLyrics, nil
+		// pass 2: title contains (but result title must not be longer by more than 10 chars)
+		for _, r := range results {
+			rTitle := strings.ToLower(strings.TrimSpace(r.TrackName))
+			if strings.Contains(rTitle, titleNorm) &&
+				len(rTitle)-len(titleNorm) <= 10 &&
+				strings.Contains(strings.ToLower(r.ArtistName), artistNorm) {
+				if synced && r.SyncedLyrics != "" {
+					log.Printf("[lrclib] fuzzy match: %q by %q", r.TrackName, r.ArtistName)
+					return r.SyncedLyrics, true
+				}
+				if !synced && r.PlainLyrics != "" {
+					log.Printf("[lrclib] fuzzy match (plain): %q by %q", r.TrackName, r.ArtistName)
+					return r.PlainLyrics, true
+				}
+			}
 		}
+		return "", false
 	}
 
-	return "", fmt.Errorf("no lyrics content found")
+	if v, ok := pick(true); ok {
+		return v, nil
+	}
+	if v, ok := pick(false); ok {
+		return v, nil
+	}
+
+	log.Printf("[lrclib] no match in %d results for %q by %q", len(results), song.Title, song.Artist)
+	return "", fmt.Errorf("no matching lyrics found")
 }

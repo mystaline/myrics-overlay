@@ -71,7 +71,11 @@ func (n *neteaseFetcher) searchSong(ctx context.Context, song *models.SongInfo) 
 	var result struct {
 		Result struct {
 			Songs []struct {
-				ID int64 `json:"id"`
+				ID      int64  `json:"id"`
+				Name    string `json:"name"`
+				Artists []struct {
+					Name string `json:"name"`
+				} `json:"artists"`
 			} `json:"songs"`
 		} `json:"result"`
 		Code int `json:"code"`
@@ -84,9 +88,13 @@ func (n *neteaseFetcher) searchSong(ctx context.Context, song *models.SongInfo) 
 		return 0, fmt.Errorf("song not found on netease")
 	}
 
-	id := result.Result.Songs[0].ID
-	log.Printf("[netease] found song ID: %d", id)
-	return id, nil
+	top := result.Result.Songs[0]
+	artistName := ""
+	if len(top.Artists) > 0 {
+		artistName = top.Artists[0].Name
+	}
+	log.Printf("[netease] matched: %q by %q (ID: %d)", top.Name, artistName, top.ID)
+	return top.ID, nil
 }
 
 func (n *neteaseFetcher) fetchByID(ctx context.Context, songID int64) (string, error) {
