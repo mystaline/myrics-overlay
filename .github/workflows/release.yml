@@ -28,6 +28,7 @@ jobs:
 
       - name: Generate release README
         run: |
+          mkdir -p build\dist
           @"
           # Myrics Overlay
 
