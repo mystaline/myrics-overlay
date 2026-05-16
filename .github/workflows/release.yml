@@ -23,6 +23,18 @@ jobs:
       - name: Install Wails
         run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
 
+      - name: Generate config from secrets
+        env:
+          ACRCLOUD_ACCESS_KEY: ${{ secrets.ACRCLOUD_ACCESS_KEY }}
+          ACRCLOUD_SECRET_KEY: ${{ secrets.ACRCLOUD_SECRET_KEY }}
+          ACRCLOUD_HOST: ${{ secrets.ACRCLOUD_HOST }}
+        run: |
+          $config = Get-Content configs\config.yaml.example -Raw
+          $config = $config -replace 'ACCESS_KEY_HERE', $env:ACRCLOUD_ACCESS_KEY
+          $config = $config -replace 'SECRET_KEY_HERE', $env:ACRCLOUD_SECRET_KEY
+          $config = $config -replace 'identify-eu-west-1\.acrcloud\.com', $env:ACRCLOUD_HOST
+          Set-Content -Path configs\config.yaml -Value $config
+
       - name: Build
         run: wails build -platform windows/amd64 -o myrics-overlay.exe
 

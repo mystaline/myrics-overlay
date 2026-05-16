@@ -22,7 +22,7 @@ func main() {
 
 	app := NewApp(cfg)
 
-	if err = wails.Run(&options.App{
+	if err := wails.Run(&options.App{
 		Title:  "Myrics",
 		Width:  800,
 		Height: 100,
