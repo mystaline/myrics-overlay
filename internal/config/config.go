@@ -1,6 +1,8 @@
 package config
 
 import (
+	"bytes"
+	"log"
 	"os"
 
 	"gopkg.in/yaml.v3"
@@ -32,17 +34,38 @@ type Config struct {
 	} `yaml:"lyrics"`
 }
 
-// Load reads configuration from a YAML file.
+// Parse reads configuration from raw YAML bytes.
+func Parse(data []byte) (*Config, error) {
+	var cfg Config
+	if err := yaml.NewDecoder(bytes.NewReader(data)).Decode(&cfg); err != nil {
+		return nil, err
+	}
+	return &cfg, nil
+}
+
+// Load reads configuration from a YAML file path.
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
+	return Parse(data)
+}
 
-	var cfg Config
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, err
+// LoadOrDefault tries the external config file first; falls back to embedded
+// default YAML if the file is missing or invalid.
+func LoadOrDefault(path string, defaultYAML []byte) *Config {
+	if data, err := os.ReadFile(path); err == nil {
+		if cfg, err := Parse(data); err == nil {
+			return cfg
+		}
+		log.Printf("config: %s is invalid, using embedded defaults", path)
+	} else {
+		log.Printf("config: %s not found, using embedded defaults", path)
 	}
-
-	return &cfg, nil
+	cfg, err := Parse(defaultYAML)
+	if err != nil {
+		panic("config: failed to parse embedded defaults: " + err.Error())
+	}
+	return cfg
 }

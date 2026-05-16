@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	_ "embed"
 	"embed"
 
 	"github.com/mystaline/myrics-overlay/internal/config"
@@ -11,14 +12,14 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/windows"
 )
 
+//go:embed configs/config.yaml.example
+var defaultConfig []byte
+
 //go:embed all:frontend
 var assets embed.FS
 
 func main() {
-	cfg, err := config.Load("configs/config.yaml")
-	if err != nil {
-		panic("failed to load config: " + err.Error())
-	}
+	cfg := config.LoadOrDefault("configs/config.yaml", defaultConfig)
 
 	app := NewApp(cfg)
 

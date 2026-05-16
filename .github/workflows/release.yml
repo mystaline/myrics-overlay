@@ -23,23 +23,42 @@ jobs:
       - name: Install Wails
         run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
 
-      - name: Generate config from secrets
-        env:
-          ACRCLOUD_ACCESS_KEY: ${{ secrets.ACRCLOUD_ACCESS_KEY }}
-          ACRCLOUD_SECRET_KEY: ${{ secrets.ACRCLOUD_SECRET_KEY }}
-          ACRCLOUD_HOST: ${{ secrets.ACRCLOUD_HOST }}
-        run: |
-          $config = Get-Content configs\config.yaml.example -Raw
-          $config = $config -replace 'ACCESS_KEY_HERE', $env:ACRCLOUD_ACCESS_KEY
-          $config = $config -replace 'SECRET_KEY_HERE', $env:ACRCLOUD_SECRET_KEY
-          $config = $config -replace 'identify-eu-west-1\.acrcloud\.com', $env:ACRCLOUD_HOST
-          Set-Content -Path configs\config.yaml -Value $config
-
       - name: Build
         run: wails build -platform windows/amd64 -o myrics-overlay.exe
 
+      - name: Generate release README
+        run: |
+          @"
+          # Myrics Overlay
+
+          A lyrics overlay for Windows that syncs with whatever you're playing on YouTube Music.
+
+          ## How to use
+
+          1. Extract this zip anywhere
+          2. Run `myrics-overlay.exe`
+             - If Windows SmartScreen blocks it, click **More info → Run anyway**
+          3. Play a song on YouTube Music — lyrics appear automatically
+
+          ## Customization (optional)
+
+          Open `configs\config.yaml` and change these values:
+
+          - `overlay.font_size` — text size (default 18)
+          - `overlay.position` — `top`, `center`, or `bottom`
+          - `overlay.opacity` — 0.0 (transparent) to 1.0 (solid)
+
+          ## ACRCloud (Linux/macOS only)
+
+          If you're on Linux/macOS and want audio-based detection, fill in your ACRCloud API keys in `configs\config.yaml` under `acrcloud`. This is not needed on Windows — detection uses the system media controls.
+          "@ | Out-File -FilePath build\dist\README.md -Encoding utf8
+
       - name: Package
-        run: Compress-Archive -Path build/bin/myrics-overlay.exe -DestinationPath myrics-overlay-windows-amd64.zip
+        run: |
+          mkdir -p build\dist\configs
+          copy build\bin\myrics-overlay.exe build\dist\
+          copy configs\config.yaml.example build\dist\configs\config.yaml
+          Compress-Archive -Path build\dist\* -DestinationPath myrics-overlay-windows-amd64.zip
 
       - uses: actions/upload-artifact@v4
         with:
