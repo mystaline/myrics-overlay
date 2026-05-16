@@ -45,13 +45,13 @@ jobs:
 
           Open `configs\config.yaml` and change these values:
 
-          - `overlay.font_size` — text size (default 18)
-          - `overlay.position` — `top`, `center`, or `bottom`
-          - `overlay.opacity` — 0.0 (transparent) to 1.0 (solid)
+          - ``overlay.font_size`` — text size (default 18)
+          - ``overlay.position`` — ``top``, ``center``, or ``bottom``
+          - ``overlay.opacity`` — 0.0 (transparent) to 1.0 (solid)
 
           ## ACRCloud (Linux/macOS only)
 
-          If you're on Linux/macOS and want audio-based detection, fill in your ACRCloud API keys in `configs\config.yaml` under `acrcloud`. This is not needed on Windows — detection uses the system media controls.
+          If you're on Linux/macOS and want audio-based detection, fill in your ACRCloud API keys in ``configs\config.yaml`` under ``acrcloud``. This is not needed on Windows — detection uses the system media controls.
           "@ | Out-File -FilePath build\dist\README.md -Encoding utf8
 
       - name: Package
